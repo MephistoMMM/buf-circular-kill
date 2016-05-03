@@ -185,9 +185,6 @@ endif
 
 " Commands {{{1
 "
-if !exists(':BA')
-  command -bang BA    :call <SID>GotoBuffer('#',"<bang>")
-endif
 if !exists(':BB')
   command -bang BB    :call <SID>GotoBuffer('bufback',"<bang>")
 endif
@@ -212,8 +209,6 @@ endif
 
 " Keyboard mappings {{{1
 "
-noremap <Plug>BufKillAlt         :call <SID>GotoBuffer('#', '')<CR>
-noremap <Plug>BufKillBangAlt     :call <SID>GotoBuffer('#', '!')<CR>
 noremap <Plug>BufKillBack        :call <SID>GotoBuffer('bufback', '')<CR>
 noremap <Plug>BufKillBangBack    :call <SID>GotoBuffer('bufback', '!')<CR>
 noremap <Plug>BufKillForward     :call <SID>GotoBuffer('bufforward', '')<CR>
@@ -365,6 +360,7 @@ function! <SID>BufKill(cmd, bang) "{{{1
 
   " For each window that the file is loaded in, go to the previous buffer from its list
   let i = 0
+  " to change
   while i < len(s:BufKillWindowListWithBufferLoaded)
     let win = s:BufKillWindowListWithBufferLoaded[i]
 
@@ -399,6 +395,22 @@ function! <SID>BufKill(cmd, bang) "{{{1
 
 endfunction
 
+function! <SID>RingBufferListSeat(logical_seat, list_len)
+  "Treat buffer list as a circular list, "This function change logical_seat 
+  "to the actual seat according to the length of list.
+  
+  " if logical_seat is navigation , add list_len to logical_seat until
+  " logical_seat > 0
+  let valid_seat = a:logical_seat
+  while (valid_seat < 0 )
+    let valid_seat += a:list_len
+  endwhile
+
+  " return the a:logical_seat mode list_len
+  return valid_seat % a:list_len
+endfunction
+
+
 function! <SID>GotoBuffer(cmd, bang) "{{{1
   "Function to display the previous buffer for the specified window
   " a:cmd is one of
@@ -406,9 +418,7 @@ function! <SID>GotoBuffer(cmd, bang) "{{{1
   "     bd - Deleting the current buffer
   "     bufback - stepping back through the list
   "     bufforward - stepping forward through the list
-  "     # - swap to alternate buffer, if one exists. Use this instead of
-  "         Ctrl-^, in order to swap to the previous column of the alternate
-  "         file, which does not happen with regular Ctrl-^.
+  let w:BufKillBeforeIndex = w:BufKillIndex
 
   if (a:cmd=='bw' || a:cmd=='bd')
     let w:BufKillLastCmd = a:cmd . a:bang
@@ -431,87 +441,54 @@ function! <SID>GotoBuffer(cmd, bang) "{{{1
         let validityFunction = 'buflisted'
       endif
     endif
-    let w:BufKillIndex -= 1
+    let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex-1, len(w:BufKillList))
   else
     let w:BufKillLastCmd = 'bufchange'
     " Should only be used with undeleted (and unwiped) buffers
     let validityFunction = 'buflisted'
 
     if a:cmd == 'bufforward'
-      let w:BufKillIndex += 1
+      let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex+1, len(w:BufKillList))
     elseif a:cmd == 'bufback'
-      let w:BufKillIndex -= 1
-    elseif a:cmd == '#'
-      let bufnum = bufnr('#')
-      if bufnum == -1
-        echom "E23: No alternate file (error simulated by bufkill.vim)"
-        return
-      endif
-      if bufnum == bufnr('.')
-        " If the alternate buffer is also the current buffer, do nothing
-        " Update: I've seen cases (vim 7.2.411) where we end up here, though
-        " :ls suggests bufnr('.') is returning the wrong value.  So allow
-        " the command to proceed...
-        echom "bufkill: bufnr('#')=".bufnr('#')." and bufnr('.')=".bufnr('.')." - trying anyway"
-        " return
-      elseif !buflisted(bufnum)
-        " Vim just ignores the command in this case, so we'll do likewise
-        " Update: it seems it no longer ignores the command in this case
-        " but in my experience, I don't want to jump to an unlisted
-        " buffer via this command - so I'll continue to ignore it - but notify
-        " the user...
-        echom "bufkill: Alternate buffer is unlisted buffer ".bufnum." ("
-          \ .bufname(bufnum).") - ignoring request"
-        return
-      endif
-      " Find this buffer number in the w:BufKillList
-      let w:BufKillIndex = index(w:BufKillList, bufnum)
+      let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex-1, len(w:BufKillList))
     endif
   endif
 
   " Find the most recent buffer to display
-  if w:BufKillIndex < 0 || w:BufKillIndex >= len(w:BufKillList)
-    let newBuffer = -1
-  else
+  if (w:BufKillBeforeIndex != w:BufKillIndex)
     let newBuffer = w:BufKillList[w:BufKillIndex]
-    let newColumn = w:BufKillColumnList[w:BufKillIndex]
     exec 'let validityResult = '.validityFunction.'(newBuffer)'
     while !validityResult
+      " some buffers are the user not need, and some invalid buffers are those
+      " user delete using other command which not within this package 
       call remove(w:BufKillList, w:BufKillIndex)
       call remove(w:BufKillColumnList, w:BufKillIndex)
-      if a:cmd != 'bufforward'
-        let w:BufKillIndex -= 1
-        " No change needed for bufforward since we just deleted the element
-        " being pointed to, so effectively, we moved forward one spot
+      " for circular list , bufforward alse need to conside
+      if a:cmd == 'bufforward'
+        let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex+1, len(w:BufKillList))
+      else
+        let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex-1, len(w:BufKillList))
       endif
-      if w:BufKillIndex < 0 || w:BufKillIndex >= len(w:BufKillList)
-        let newBuffer = -1
+      " After back the starting point，Back out it
+      if (w:BufKillBeforeIndex == w:BufKillIndex)
         break
       endif
       let newBuffer = w:BufKillList[w:BufKillIndex]
-      let newColumn = w:BufKillColumnList[w:BufKillIndex]
       exec 'let validityResult = '.validityFunction.'(newBuffer)'
     endwhile
   endif
 
-  " Handle the case of no valid buffer number to display
-  let cmd = ''
-  if newBuffer == -1
-    " Ensure index is meaningful
-    if a:cmd == 'bufforward'
-      let w:BufKillIndex = len(w:BufKillList) - 1
-    else
-      let w:BufKillIndex = 0
-    endif
-    " Reset lastCmd since didn't work
-    let w:BufKillLastCmd = ''
-    echom 'BufKill: already at the limit of the BufKill list'
-    " Leave cmd empty to do nothing
-  else
+  " When find the different buffer, use it
+  " When not find and w:BufKillLastCmd has been set, just unset it and echo
+  " messages
+  if (w:BufKillBeforeIndex != w:BufKillIndex)
+    let newColumn = w:BufKillColumnList[w:BufKillIndex]
     let cmd = 'b' . a:bang . newBuffer . "|call cursor(line('.')," . newColumn . ')'
+    exec cmd
+  elseif (w:BufKillLastCmd == 'bufchange')
+    let w:BufKillLastCmd = ''
+    echom 'No Other List Buffers.'
   endif
-  exec cmd
-
 endfunction   " GotoBuffer
 
 function! <SID>UpdateList(event) "{{{1
@@ -534,28 +511,32 @@ function! <SID>UpdateList(event) "{{{1
     " When stepping through files, the w:BufKillList should not be changed
     " here, only by the GotoBuffer command since the files must already
     " exist in the list to jump to them.
+  elseif (w:BufKillLastCmd != '')
+    " When killing buffer , the w:BufKillBeforeIndex should be deleted 
+    " here.
+    
+    " if the w:BufKillIndex pointer go to the tail, change it to the tail-1
+    if(len(w:BufKillList)-2 < w:BufKillIndex)
+      let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex-1, len(w:BufKillIndex))
+    end
+
+    " The branch is diverging, remove the 
+    call remove(w:BufKillList, w:BufKillBeforeIndex)
+    " Same for column list
+    call remove(w:BufKillColumnList, w:BufKillBeforeIndex)
   else
-    " Increment index
-    let w:BufKillIndex += 1
-    if w:BufKillIndex < len(w:BufKillList)
-      " The branch is diverging, remove the end of the list
-      call remove(w:BufKillList, w:BufKillIndex, -1)
-      " Same for column list
-      if w:BufKillIndex < len(w:BufKillColumnList)
-        call remove(w:BufKillColumnList, w:BufKillIndex, -1)
-      endif
-    endif
-    " Now remove any pre-existing instances of the buffer in the list
+    " When buffer entering by other ways,
+    " if existing buffer , just adjust w:BufKillIndex to existingIndex
+    " if new buffer , add it to w:BufKillIndex
+    
     let existingIndex = index(w:BufKillList, bufferNum)
     if existingIndex != -1
-      call remove(w:BufKillList, existingIndex)
-      let w:BufKillIndex -= 1
-      if existingIndex < len(w:BufKillColumnList)
-        call remove(w:BufKillColumnList, existingIndex)
-      endif
+      let w:BufKillIndex = existingIndex
+    else
+      " Now add the buffer to the list, at the end
+      let w:BufKillIndex = len(w:BufKillList) 
+      let w:BufKillList += [bufferNum]
     endif
-    " Now add the buffer to the list, at the end
-    let w:BufKillList += [bufferNum]
   endif
 
   " Reset since command processed
