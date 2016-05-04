@@ -73,15 +73,15 @@
 " 1.0  - initial functionality
 "
 " Implementation Notes:
-" w:BufKillList stores the list of buffers accessed so far, in order
+" g:BufKillList stores the list of buffers accessed so far, in order
 "      of most recent access, for each respective window.
-" w:BufKillColumnList store the list of columns the cursor was in when
-"      a buffer was left.  It follows that since w:BufKillList lists
-"      all buffers ever entered, but w:BufKillColumnList lists columns
+" g:BufKillColumnList store the list of columns the cursor was in when
+"      a buffer was left.  It follows that since g:BufKillList lists
+"      all buffers ever entered, but g:BufKillColumnList lists columns
 "      only for those exited, the latter is expected to be one element
 "      shorted than the former (since the current buffer should only be
 "      entered, but not yet exited).
-" w:BufKillIndex stores the current index into the w:BufKillList array
+" w:BufKillIndex stores the current index into the g:BufKillList array
 
 " Reload guard and 'compatible' handling {{{1
 let s:save_cpo = &cpo
@@ -241,8 +241,8 @@ call <SID>CreateUniqueMapping('<Leader>bundo','<Plug>BufKillUndo')
 
 function! <SID>BufKill(cmd, bang) "{{{1
 " The main function that sparks the buffer change/removal
-  if !exists('w:BufKillList')
-    echoe "BufKill Error: array w:BufKillList does not exist!"
+  if !exists('g:BufKillList')
+    echoe "BufKill Error: array g:BufKillList does not exist!"
     echoe "Restart vim and retry, and if problems persist, notify the author!"
     return
   endif
@@ -269,8 +269,8 @@ function! <SID>BufKill(cmd, bang) "{{{1
 
   " Just to make sure, check that this matches the buffer currently pointer to
   " by w:BufKillIndex - else I've stuffed up
-  if s:BufKillBufferToKill != w:BufKillList[w:BufKillIndex]
-    echom "BufKill Warning: bufferToKill = ".s:BufKillBufferToKill." != element ".w:BufKillIndex." in the list: (".string(w:BufKillList).")"
+  if s:BufKillBufferToKill != g:BufKillList[w:BufKillIndex]
+    echom "BufKill Warning: bufferToKill = ".s:BufKillBufferToKill." != element ".w:BufKillIndex." in the list: (".string(g:BufKillList).")"
     echom "Please notify the author of the circumstances of this message!"
   endif
 
@@ -441,39 +441,39 @@ function! <SID>GotoBuffer(cmd, bang) "{{{1
         let validityFunction = 'buflisted'
       endif
     endif
-    let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex-1, len(w:BufKillList))
+    let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex-1, len(g:BufKillList))
   else
     let w:BufKillLastCmd = 'bufchange'
     " Should only be used with undeleted (and unwiped) buffers
     let validityFunction = 'buflisted'
 
     if a:cmd == 'bufforward'
-      let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex+1, len(w:BufKillList))
+      let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex+1, len(g:BufKillList))
     elseif a:cmd == 'bufback'
-      let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex-1, len(w:BufKillList))
+      let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex-1, len(g:BufKillList))
     endif
   endif
 
   " Find the most recent buffer to display
   if (w:BufKillBeforeIndex != w:BufKillIndex)
-    let newBuffer = w:BufKillList[w:BufKillIndex]
+    let newBuffer = g:BufKillList[w:BufKillIndex]
     exec 'let validityResult = '.validityFunction.'(newBuffer)'
     while !validityResult
       " some buffers are the user not need, and some invalid buffers are those
       " user delete using other command which not within this package 
-      call remove(w:BufKillList, w:BufKillIndex)
-      call remove(w:BufKillColumnList, w:BufKillIndex)
+      call remove(g:BufKillList, w:BufKillIndex)
+      call remove(g:BufKillColumnList, w:BufKillIndex)
       " for circular list , bufforward alse need to conside
       if a:cmd == 'bufforward'
-        let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex+1, len(w:BufKillList))
+        let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex+1, len(g:BufKillList))
       else
-        let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex-1, len(w:BufKillList))
+        let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex-1, len(g:BufKillList))
       endif
       " After back the starting point，Back out it
       if (w:BufKillBeforeIndex == w:BufKillIndex)
         break
       endif
-      let newBuffer = w:BufKillList[w:BufKillIndex]
+      let newBuffer = g:BufKillList[w:BufKillIndex]
       exec 'let validityResult = '.validityFunction.'(newBuffer)'
     endwhile
   endif
@@ -482,7 +482,7 @@ function! <SID>GotoBuffer(cmd, bang) "{{{1
   " When not find and w:BufKillLastCmd has been set, just unset it and echo
   " messages
   if (w:BufKillBeforeIndex != w:BufKillIndex)
-    let newColumn = w:BufKillColumnList[w:BufKillIndex]
+    let newColumn = g:BufKillColumnList[w:BufKillIndex]
     let cmd = 'b' . a:bang . newBuffer . "|call cursor(line('.')," . newColumn . ')'
     exec cmd
   elseif (w:BufKillLastCmd == 'bufchange')
@@ -493,11 +493,11 @@ endfunction   " GotoBuffer
 
 function! <SID>UpdateList(event) "{{{1
   " Function to update the window list with info about the current buffer
-  if !exists('w:BufKillList')
-    let w:BufKillList = []
+  if !exists('g:BufKillList')
+    let g:BufKillList = []
   endif
-  if !exists('w:BufKillColumnList')
-    let w:BufKillColumnList = []
+  if !exists('g:BufKillColumnList')
+    let g:BufKillColumnList = []
   endif
   if !exists('w:BufKillIndex')
     let w:BufKillIndex = -1
@@ -508,7 +508,7 @@ function! <SID>UpdateList(event) "{{{1
   let bufferNum = bufnr('%')
 
   if (w:BufKillLastCmd=~'bufchange')
-    " When stepping through files, the w:BufKillList should not be changed
+    " When stepping through files, the g:BufKillList should not be changed
     " here, only by the GotoBuffer command since the files must already
     " exist in the list to jump to them.
   elseif (w:BufKillLastCmd != '')
@@ -516,26 +516,26 @@ function! <SID>UpdateList(event) "{{{1
     " here.
     
     " if the w:BufKillIndex pointer go to the tail, change it to the tail-1
-    if(len(w:BufKillList)-2 < w:BufKillIndex)
+    if(len(g:BufKillList)-2 < w:BufKillIndex)
       let w:BufKillIndex = <SID>RingBufferListSeat(w:BufKillIndex-1, len(w:BufKillIndex))
     end
 
     " The branch is diverging, remove the 
-    call remove(w:BufKillList, w:BufKillBeforeIndex)
+    call remove(g:BufKillList, w:BufKillBeforeIndex)
     " Same for column list
-    call remove(w:BufKillColumnList, w:BufKillBeforeIndex)
+    call remove(g:BufKillColumnList, w:BufKillBeforeIndex)
   else
     " When buffer entering by other ways,
     " if existing buffer , just adjust w:BufKillIndex to existingIndex
     " if new buffer , add it to w:BufKillIndex
     
-    let existingIndex = index(w:BufKillList, bufferNum)
+    let existingIndex = index(g:BufKillList, bufferNum)
     if existingIndex != -1
       let w:BufKillIndex = existingIndex
     else
       " Now add the buffer to the list, at the end
-      let w:BufKillIndex = len(w:BufKillList) 
-      let w:BufKillList += [bufferNum]
+      let w:BufKillIndex = len(g:BufKillList) 
+      let g:BufKillList += [bufferNum]
     endif
   endif
 
@@ -546,17 +546,17 @@ endfunction   " UpdateList
 
 function! <SID>UpdateLastColumn(event) "{{{1
   " Function to save the current column and buffer and window numbers,
-  if !exists('w:BufKillList')
+  if !exists('g:BufKillList')
     " Just give up for now.
     return
   endif
-  let index = index(w:BufKillList, bufnr('%'))
+  let index = index(g:BufKillList, bufnr('%'))
   if index != -1
     " Extend list if required, then set the value
-    let w:BufKillColumnList += repeat([0], index - len(w:BufKillColumnList) + 1)
-    let w:BufKillColumnList[index] = col('.')
+    let g:BufKillColumnList += repeat([0], index - len(g:BufKillColumnList) + 1)
+    let g:BufKillColumnList[index] = col('.')
   else
-    echom 'UpdateLastColumn failed to find bufnr ' . bufnr('%') . ' in w:BufKillList'
+    echom 'UpdateLastColumn failed to find bufnr ' . bufnr('%') . ' in g:BufKillList'
   endif
 endfunction
 

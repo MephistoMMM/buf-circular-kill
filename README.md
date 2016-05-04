@@ -9,6 +9,7 @@ Based On [BufKill 1.10](https://github.com/vim-scripts/bufkill.vim)
 * Now change BufKillList to circular list , at the both ends of BufKillList , go back or go formate will go to the another end of BufKillList.
 * Add new buffer function
 * Change key map to spacemacs-like . e.g: '<leader>bn(p)' to turn to next(prev) buffer, '<leader>bt' to create new buffer , '<leader>bd(!)' to delete this buffer
+* Change w:BufKillList and w:BufKillColumnList to global variate , hence it will sync to airline tag bar.
 
 **TODO**:
 
