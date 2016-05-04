@@ -2,6 +2,13 @@
 " Maintainer:	John Orr (john undersc0re orr yah00 c0m)
 " Version:	1.10
 " Last Change:	16 June 2011
+"
+" Changer: Mephis Pheies ( MephistoMMM )
+" Changer Email: mephistommm@gmail.com
+" Changer Info: 
+"	fix bug in updateList, and change buflist to circular list, and delete
+"	some command definitions.
+
 
 " Introduction: {{{1
 " Basic Usage:
@@ -34,24 +41,6 @@
 " c) comments by Keith Roberts when the issue was raised in the
 "    vim@vim.org mailing list.
 
-" Install Details:
-" Drop this file into your $HOME/.vim/plugin directory (unix)
-" or $HOME/vimfiles/plugin directory (Windows), etc.
-" Use the commands/mappings defined below to invoke the functionality
-" (or redefine them elsewhere to what you want), and set the
-" User Configurable Variables as desired.  You should be able to make
-" any customisations to the controls in your vimrc file, such that
-" updating to new versions of this script won't affect your settings.
-
-" Credits:
-" Dimitar Dimitrov - for improvements in mappings and robustness
-" A few people who pointed out bugs I'd fixed but not made public.
-" Magnus Thor Torfason - for improvements relating to the 'confirm' setting.
-" Keith Roberts - for many hours of email discussions, ideas and suggestions
-"   to try to get the details as good as possible.
-" Someone from http://www.cs.albany.edu, who described the functionality of
-"   this script in tip #622.
-
 " Possible Improvements:
 " If you're particularly interested in any of these, let me know - some are
 " definitely planned to happen when time permits:
@@ -67,6 +56,8 @@
 "   last view in that file.
 
 " Changelog:
+" Mephis Pheies Change - fix update bug, and change buflist to circular list,
+"                        and delete command definition.
 " 1.10 - Various fixes, eg relating to quicklists
 " 1.9  - Remove unnecessary mapping delays, and a debug message
 " 1.8  - Improved mapping handling, and robustness
@@ -209,6 +200,7 @@ endif
 
 " Keyboard mappings {{{1
 "
+noremap <Plug>BufKillNew         :call <SID>BufKill('new', '')<CR>
 noremap <Plug>BufKillBack        :call <SID>GotoBuffer('bufback', '')<CR>
 noremap <Plug>BufKillBangBack    :call <SID>GotoBuffer('bufback', '!')<CR>
 noremap <Plug>BufKillForward     :call <SID>GotoBuffer('bufforward', '')<CR>
@@ -232,19 +224,20 @@ function! <SID>CreateUniqueMapping(lhs, rhs, ...)
   exec 'nmap <silent> <unique> '.a:lhs.' '.a:rhs
 endfunction
 
-call <SID>CreateUniqueMapping('<Leader>bb',   '<Plug>BufKillBack')
-call <SID>CreateUniqueMapping('<Leader>bf',   '<Plug>BufKillForward')
-call <SID>CreateUniqueMapping('<Leader>bun',  '<Plug>BufKillBun')
-call <SID>CreateUniqueMapping('<Leader>!bun', '<Plug>BufKillBangBun')
+call <SID>CreateUniqueMapping('<Leader>bt',   '<Plug>BufKillNew')
+call <SID>CreateUniqueMapping('<Leader>bn',   '<Plug>BufKillBack')
+call <SID>CreateUniqueMapping('<Leader>bp',   '<Plug>BufKillForward')
+"call <SID>CreateUniqueMapping('<Leader>bun',  '<Plug>BufKillBun')
+"call <SID>CreateUniqueMapping('<Leader>!bun', '<Plug>BufKillBangBun')
 call <SID>CreateUniqueMapping('<Leader>bd',   '<Plug>BufKillBd')
 call <SID>CreateUniqueMapping('<Leader>!bd',  '<Plug>BufKillBangBd')
-call <SID>CreateUniqueMapping('<Leader>bw',   '<Plug>BufKillBw')
-call <SID>CreateUniqueMapping('<Leader>!bw',  '<Plug>BufKillBangBw')
+"call <SID>CreateUniqueMapping('<Leader>bw',   '<Plug>BufKillBw')
+"call <SID>CreateUniqueMapping('<Leader>!bw',  '<Plug>BufKillBangBw')
 call <SID>CreateUniqueMapping('<Leader>bundo','<Plug>BufKillUndo')
-call <SID>CreateUniqueMapping('<Leader>ba',   '<Plug>BufKillAlt')
-if g:BufKillOverrideCtrlCaret == 1
-  call <SID>CreateUniqueMapping('<C-^>', '<Plug>BufKillAlt', 'AllowDuplicate')
-endif
+"if g:BufKillOverrideCtrlCaret == 1
+  "call <SID>CreateUniqueMapping('<C-^>', '<Plug>BufKillAlt', 'AllowDuplicate')
+"endif
+
 
 function! <SID>BufKill(cmd, bang) "{{{1
 " The main function that sparks the buffer change/removal
@@ -294,7 +287,7 @@ function! <SID>BufKill(cmd, bang) "{{{1
       endif
     endif
     if s:BufKillActionWhenModifiedFileToBeKilled =~ '[Ff][Aa][Ii][Ll]'
-      echoe "No write since last change for buffer '" . bufname(s:BufKillBufferToKill) . "' (add ! to override)"
+      echo "No write since last change for buffer '" . bufname(s:BufKillBufferToKill) . "' (add ! to override)"
       return
     elseif s:BufKillActionWhenModifiedFileToBeKilled =~ '[Cc][Oo][Nn][Ff][Ii][Rr][Mm]'
       let options = "&Yes\n&No\n&Cancel"
@@ -305,7 +298,7 @@ function! <SID>BufKill(cmd, bang) "{{{1
         let options = "&No\n&Cancel"
         let actionAdjustment = 1
       endif
-      let action=confirm("Save Changes in " . bufname . " before removing it?", options)
+      let action=confirm("Save Changes in " . bufname . " before operation?", options)
       if action + actionAdjustment == 1
         " Yes - try to save - if there is an error, cancel
         let v:errmsg = ""
@@ -325,6 +318,13 @@ function! <SID>BufKill(cmd, bang) "{{{1
       echoe "Illegal value (' . s:BufKillActionWhenModifiedFileToBeKilled . ') stored in variable s:BufKillActionWhenModifiedFileToBeKilled, please notify the author"
     endif
   endif
+
+  " create new buffer
+  if (a:cmd == 'new')
+    exec g:BufKillCommandWhenLastBufferKilled 
+    return
+  endif
+  
 
   " Get a list of all windows which have this buffer loaded
   let s:BufKillWindowListWithBufferLoaded = []
